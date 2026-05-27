@@ -6,11 +6,11 @@ const { mockQuery } = require('./mockData');
 // Resolve configuration and executable paths
 const coralBinPath = path.resolve(
   __dirname,
-  process.env.CORAL_BIN_PATH || '../.coral-bin/coral.exe'
+  process.env.CORAL_BIN_PATH || '../../.coral-bin/coral.exe'
 );
 const coralConfigDir = path.resolve(
   __dirname,
-  process.env.CORAL_CONFIG_DIR || '../.coral-config'
+  process.env.CORAL_CONFIG_DIR || '../../.coral-config'
 );
 
 /**
@@ -18,7 +18,6 @@ const coralConfigDir = path.resolve(
  * @returns {boolean}
  */
 function isCoralCliAvailable() {
-  // Check for .exe on Windows or general file existence
   const actualPath = process.platform === 'win32' && !coralBinPath.endsWith('.exe')
     ? coralBinPath + '.exe'
     : coralBinPath;
@@ -45,11 +44,9 @@ function executeQuery(sql) {
     }
 
     // 2. Prepare Environment variables for the Coral CLI
-    // Inject API tokens so Coral can authenticate seamlessly on demand
     const execEnv = {
       ...process.env,
       CORAL_CONFIG_DIR: coralConfigDir,
-      // Coral maps variables straight to source configurations
       GITHUB_TOKEN: process.env.GITHUB_TOKEN || '',
       SLACK_TOKEN: process.env.SLACK_TOKEN || '',
       PAGERDUTY_API_TOKEN: process.env.PAGERDUTY_API_TOKEN || '',
@@ -69,7 +66,6 @@ function executeQuery(sql) {
           console.warn(`⚠️ [Coral Service] Execution failed. Falling back to Mock Mode.`);
           console.warn(`   Stderr: ${stderr || error.message}`);
           
-          // Return mock data fallback
           const mockResult = mockQuery(sql);
           return resolve(mockResult);
         }

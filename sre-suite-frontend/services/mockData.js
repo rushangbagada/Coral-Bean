@@ -118,7 +118,6 @@ const githubCommits = [
 
 // 4. Slack Messages (for incident channels)
 const slackMessages = [
-  // Slack Warroom Thread for Database connection pool exhaustion INC-2041
   {
     timestamp: "2026-05-27T10:16:00Z",
     user_name: "sre-bot",
@@ -171,6 +170,31 @@ const slackMessages = [
   }
 ];
 
+// 5. GitHub Pull Requests
+const githubPullRequests = [
+  {
+    id: "pr_101",
+    number: 101,
+    title: "fix: resolve db connection pool limits",
+    html_url: "https://github.com/rushangbagada/Coral-Bean/pull/101",
+    state: "closed"
+  },
+  {
+    id: "pr_102",
+    number: 102,
+    title: "fix: increase cache eviction buffer",
+    html_url: "https://github.com/rushangbagada/Coral-Bean/pull/102",
+    state: "closed"
+  },
+  {
+    id: "pr_103",
+    number: 103,
+    title: "fix: patch heap growth in payment controller",
+    html_url: "https://github.com/rushangbagada/Coral-Bean/pull/103",
+    state: "closed"
+  }
+];
+
 /**
  * Parses a SQL statement and returns matching mock data.
  * @param {string} sql
@@ -181,7 +205,6 @@ function mockQuery(sql) {
 
   // 1. Slack Messages
   if (normalizedSql.includes('slack.messages')) {
-    // If querying during specific incident timeframe
     return slackMessages;
   }
 
@@ -203,6 +226,20 @@ function mockQuery(sql) {
     return githubCommits;
   }
 
+  // 3b. GitHub Pull Requests
+  if (normalizedSql.includes('github.pull_requests')) {
+    if (normalizedSql.includes('pool') || normalizedSql.includes('db')) {
+      return [githubPullRequests[0]];
+    }
+    if (normalizedSql.includes('cache') || normalizedSql.includes('eviction') || normalizedSql.includes('storm')) {
+      return [githubPullRequests[1]];
+    }
+    if (normalizedSql.includes('memory') || normalizedSql.includes('heap') || normalizedSql.includes('leak')) {
+      return [githubPullRequests[2]];
+    }
+    return githubPullRequests;
+  }
+
   // 4. PagerDuty Incidents
   if (normalizedSql.includes('pagerduty.incidents')) {
     if (normalizedSql.includes("status = 'triggered'") || normalizedSql.includes("status='triggered'")) {
@@ -212,7 +249,6 @@ function mockQuery(sql) {
       return pagerdutyIncidents.filter(inc => inc.status === 'resolved');
     }
     if (normalizedSql.includes("id = '") || normalizedSql.includes("id='")) {
-      // Fetch specific incident ID e.g. INC-2041
       const idMatch = sql.match(/id\s*=\s*['"]([^'"]+)['"]/i);
       if (idMatch) {
         const found = pagerdutyIncidents.find(inc => inc.id === idMatch[1]);
@@ -232,7 +268,6 @@ function mockQuery(sql) {
     ];
   }
 
-  // Default empty list
   return [];
 }
 
@@ -240,6 +275,7 @@ module.exports = {
   pagerdutyIncidents,
   sentryEvents,
   githubCommits,
+  githubPullRequests,
   slackMessages,
   mockQuery
 };
