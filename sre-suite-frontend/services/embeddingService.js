@@ -1,19 +1,20 @@
 const { createClient } = require('@supabase/supabase-js');
-const { OpenAI } = require('openai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-const openAiKey = process.env.OPENAI_API_KEY;
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const geminiKey = process.env.GEMINI_API_KEY;
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-const isLiveOpenAi = openAiKey && openAiKey !== 'your_key' && openAiKey.trim() !== '';
-const isLiveSupabase = supabaseUrl && supabaseUrl !== 'your_supabase_project_url' && supabaseKey && supabaseKey !== 'your_anon_key';
+const isMockMode = process.env.MOCK_MODE === 'true';
+const isLiveGemini = !isMockMode && geminiKey && geminiKey !== 'your_gemini_key' && geminiKey.trim() !== '';
+const isLiveSupabase = !isMockMode && supabaseUrl && supabaseUrl !== 'your_supabase_project_url' && supabaseKey && supabaseKey !== 'your_anon_key';
 
-let openaiClient = null;
+let geminiClient = null;
 let supabaseClient = null;
 
-if (isLiveOpenAi) {
-  openaiClient = new OpenAI({ apiKey: openAiKey });
-  console.log('🤖 [Embedding Service] Active OpenAI client initialized inside Next.js.');
+if (isLiveGemini) {
+  geminiClient = new GoogleGenerativeAI(geminiKey);
+  console.log('🤖 [Embedding Service] Active Gemini AI client initialized inside Next.js.');
 } else {
   console.log('💡 [Embedding Service] Using Offline Mock Embedding Generator inside Next.js.');
 }
@@ -86,15 +87,30 @@ async function generateEmbedding(text) {
     return new Array(1536).fill(0);
   }
 
-  if (isLiveOpenAi) {
+  if (isLiveGemini) {
     try {
-      const response = await openaiClient.embeddings.create({
-        model: 'text-embedding-ada-002',
-        input: text.replace(/\n/g, ' ')
-      });
-      return response.data[0].embedding;
+      const model = geminiClient.getGenerativeModel({ model: 'gemini-embedding-001' });
+      const response = await model.embedContent(text.replace(/\n/g, ' '));
+      let embedding = response.embedding.values;
+      
+      // Pad or truncate to 1536 dimensions for 100% pgvector database compatibility
+      if (embedding.length < 1536) {
+        const padded = new Array(1536).fill(0);
+        for (let i = 0; i < embedding.length; i++) {
+          padded[i] = embedding[i];
+        }
+        embedding = padded;
+      } else if (embedding.length > 1536) {
+        embedding = embedding.slice(0, 1536);
+        // We must re-normalize the vector after slicing so cosine similarity works correctly
+        let magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
+        if (magnitude > 0) {
+          embedding = embedding.map(val => val / magnitude);
+        }
+      }
+      return embedding;
     } catch (err) {
-      console.warn('⚠️ [Embedding Service] OpenAI embedding API failed. Falling back to Mock Vector.');
+      console.warn('⚠️ [Embedding Service] Gemini embedding API failed. Falling back to Mock Vector:', err.message);
       return generateMockVector(text);
     }
   } else {
@@ -121,7 +137,7 @@ async function storeEmbedding(incidentId, title, description, embedding, source 
       if (error) throw error;
       return true;
     } catch (err) {
-      console.warn('⚠️ [Embedding Service] Supabase store failed. Saving to In-Memory backup.');
+      console.warn('⚠️ [Embedding Service] Supabase store failed. Saving to In-Memory backup. Error details:', err.message || err);
     }
   }
 
@@ -162,7 +178,7 @@ async function findSimilarIncidents(newEmbedding, threshold = 0.85, limit = 5) {
         return matches;
       }
     } catch (err) {
-      console.warn('⚠️ [Embedding Service] Supabase similarity query failed. Using In-Memory fallback search.');
+      console.warn('⚠️ [Embedding Service] Supabase similarity query failed. Using In-Memory fallback search. Error details:', err.message || err);
     }
   }
 

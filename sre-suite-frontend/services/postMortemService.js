@@ -1,13 +1,14 @@
-const { OpenAI } = require('openai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const embeddingService = require('./embeddingService');
 
-const openAiKey = process.env.OPENAI_API_KEY;
-const isLiveOpenAi = openAiKey && openAiKey !== 'your_key' && openAiKey.trim() !== '';
+const geminiKey = process.env.GEMINI_API_KEY;
+const isMockMode = process.env.MOCK_MODE === 'true';
+const isLiveGemini = !isMockMode && geminiKey && geminiKey !== 'your_gemini_key' && geminiKey.trim() !== '';
 
-let openaiClient = null;
-if (isLiveOpenAi) {
-  openaiClient = new OpenAI({ apiKey: openAiKey });
-  console.log('🤖 [Post-Mortem Service] Active OpenAI client initialized inside Next.js.');
+let geminiClient = null;
+if (isLiveGemini) {
+  geminiClient = new GoogleGenerativeAI(geminiKey);
+  console.log('🤖 [Post-Mortem Service] Active Gemini AI client initialized inside Next.js.');
 }
 
 const inMemoryPostMortems = [];
@@ -75,20 +76,17 @@ Be concise. Do not invent facts not in the timeline. If data is missing, note it
 
   const userMessage = `Incident data:\n\n${JSON.stringify(consolidatedTimeline, null, 2)}\n\nMetadata: ${JSON.stringify(incidentMeta)}`;
 
-  if (isLiveOpenAi) {
+  if (isLiveGemini) {
     try {
-      const response = await openaiClient.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
-        max_tokens: 2000
+      const model = geminiClient.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const result = await model.generateContent({
+        contents: [
+          { role: 'user', parts: [{ text: systemPrompt + "\n\n" + userMessage }] }
+        ]
       });
-
-      return response.choices[0].message.content;
+      return result.response.text();
     } catch (err) {
-      console.warn('⚠️ [Post-Mortem Service] OpenAI API chat completion failed inside Next.js. Falling back to Mock.');
+      console.warn('⚠️ [Post-Mortem Service] Gemini API content generation failed inside Next.js. Falling back to Mock:', err.message);
     }
   }
 
@@ -157,7 +155,7 @@ async function savePostMortem(incidentId, markdown, approvedBy = 'system') {
       if (error) throw error;
       return true;
     } catch (err) {
-      console.warn('⚠️ [Post-Mortem Service] Supabase save failed. Saving to In-Memory backup.');
+      console.warn('⚠️ [Post-Mortem Service] Supabase save failed. Saving to In-Memory backup. Error details:', err.message || err);
     }
   }
 
@@ -181,7 +179,7 @@ async function listPostMortems() {
       if (error) throw error;
       return data || [];
     } catch (err) {
-      console.warn('⚠️ [Post-Mortem Service] Supabase list failed. Using In-Memory list.');
+      console.warn('⚠️ [Post-Mortem Service] Supabase list failed. Using In-Memory list. Error details:', err.message || err);
     }
   }
 
@@ -200,7 +198,7 @@ async function getPostMortem(incidentId) {
       if (error) throw error;
       if (data) return data;
     } catch (err) {
-      console.warn('⚠️ [Post-Mortem Service] Supabase fetch failed. Using In-Memory query.');
+      console.warn('⚠️ [Post-Mortem Service] Supabase fetch failed. Using In-Memory query. Error details:', err.message || err);
     }
   }
 

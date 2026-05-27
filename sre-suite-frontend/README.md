@@ -1,36 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# SRE Co-Pilot Workspace (Pirates of the Coral-bean)
 
-## Getting Started
+Welcome to the **SRE Co-Pilot Workspace**! This project is an AI-powered incident tracking and post-mortem generation suite built for the "Pirates of the Coral-bean" hackathon.
 
-First, run the development server:
+## Architecture
 
+This project was initially designed as an Express backend and Next.js frontend. To optimize for modern deployment, **the entire backend has been seamlessly migrated into Next.js 14 App Router API Routes**, resulting in a unified, full-stack application that eliminates CORS issues and simplifies deployment.
+
+### Key Features
+1. **Reincarnation Tracker Agent**: Uses AI embeddings to vectorize incoming incidents and queries a Supabase `pgvector` database to detect if a current incident is a "reincarnation" of a previously resolved historical issue.
+2. **Post-Mortem Generator Agent**: Automatically compiles Slack messages, GitHub PRs, and PagerDuty alerts into a blameless, Markdown-formatted post-mortem report (Executive Summary, 5 Whys, Timeline, Action Items).
+3. **Coral Integration**: We use a mock `coral.exe` binary (simulating a proprietary internal data layer) to dynamically query real-time GitHub PR data for historical incident linkages in our Graph Service.
+
+---
+
+## Setup Instructions
+
+### 1. Install Dependencies
+Navigate into the frontend directory and install dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd sre-suite-frontend
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Configure Environment Variables
+Copy `.env.example` to `.env` (or create a `.env` file in `sre-suite-frontend`) and configure the following keys:
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+```env
+# Server Config
+PORT=3000
+MOCK_MODE=false
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Coral Data Engine
+CORAL_CONFIG_DIR=../.coral-config
+CORAL_BIN_PATH=../.coral-bin/coral.exe
 
-## Learn More
+# Integration Tokens
+GITHUB_TOKEN=your_github_token
+SLACK_TOKEN=your_slack_token
+PAGERDUTY_API_TOKEN=your_pd_token
 
-To learn more about Next.js, take a look at the following resources:
+# AI Provider (Using Google Gemini)
+GEMINI_API_KEY=your_gemini_api_key
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Supabase (pgvector)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+```
+*(Note: Adding `SUPABASE_SERVICE_ROLE_KEY` bypasses Row-Level Security for backend indexing).*
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 3. Setup Supabase Database Schema
+Run the following SQL commands in your Supabase SQL Editor to initialize the `pgvector` extension and required tables:
 
-## Deploy on Vercel
+```sql
+-- Enable pgvector extension
+CREATE EXTENSION IF NOT EXISTS vector;
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+-- Create incident embeddings table
+CREATE TABLE IF NOT EXISTS incident_embeddings (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  incident_id text UNIQUE NOT NULL,
+  title text,
+  description text,
+  embedding vector(1536),
+  source text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+-- Create HNSW or IVFFlat index for similarity search
+CREATE INDEX ON incident_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+-- Create post_mortems table
+CREATE TABLE IF NOT EXISTS post_mortems (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  incident_id text UNIQUE NOT NULL,
+  markdown text,
+  approved_by text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+```
+
+### 4. Run the Project
+Start the Next.js development server:
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+---
+
+## Testing Data (Seeding)
+If you are running this with a fresh Supabase instance, your similarity search will return 0 results. You can seed the database with mock historical incidents by running:
+```bash
+node seed-historical.js
+```

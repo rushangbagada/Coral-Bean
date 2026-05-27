@@ -20,9 +20,13 @@ export async function POST(req) {
       reincarnationsCount++;
     }
 
+    // Save the newly submitted incident to the database so it can be used for future comparisons
+    const assignedId = id || `INC-${Date.now()}`;
+    await embeddingService.storeEmbedding(assignedId, title, description, newEmbedding, 'tracker-form');
+
     return NextResponse.json({
       success: true,
-      incident_id: id || 'INC999',
+      incident_id: assignedId,
       is_reincarnated: isReincarnated,
       matches: matches.map(m => ({
         incident_id: m.incident_id,

@@ -1,7 +1,10 @@
 import Link from 'next/link';
+import StatusBadge from '@/components/StatusBadge';
 import embeddingService from '@/services/embeddingService';
 import postMortemService from '@/services/postMortemService';
 import { getReincarnationsCount } from '@/app/api/tracker/check-reincarnation/route';
+
+export const dynamic = 'force-dynamic';
 
 // Fetch stats on the server
 async function getStats() {
@@ -142,15 +145,7 @@ export default async function Home() {
                         {report.approved_by || <span className="text-gray-600">—</span>}
                       </td>
                       <td className="py-3.5 px-4">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${
-                            isApproved
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          }`}
-                        >
-                          {isApproved ? 'Approved' : 'Draft'}
-                        </span>
+                        <StatusBadge isApproved={isApproved} />
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         <Link
