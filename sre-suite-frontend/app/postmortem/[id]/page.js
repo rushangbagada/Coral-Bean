@@ -23,6 +23,65 @@ export default function PostMortemEditor() {
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState(null);
 
+  const [exportingGitHub, setExportingGitHub] = useState(false);
+  const [exportingConfluence, setExportingConfluence] = useState(false);
+  const [exportMessage, setExportMessage] = useState('');
+  const [exportUrl, setExportUrl] = useState('');
+
+  const handleExportGitHub = async () => {
+    setExportingGitHub(true);
+    setExportMessage('');
+    setExportUrl('');
+    try {
+      const res = await axios.post('/api/postmortem/export/github', { incidentId, markdown });
+      if (res.data && res.data.success) {
+        setExportMessage(res.data.message);
+        setExportUrl(res.data.url);
+      } else {
+        throw new Error('Export failed');
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'GitHub export failed');
+    } finally {
+      setExportingGitHub(false);
+    }
+  };
+
+  const handleExportConfluence = async () => {
+    setExportingConfluence(true);
+    setExportMessage('');
+    setExportUrl('');
+    try {
+      const res = await axios.post('/api/postmortem/export/confluence', { incidentId, markdown });
+      if (res.data && res.data.success) {
+        setExportMessage(res.data.message);
+        setExportUrl(res.data.url);
+      } else {
+        throw new Error('Export failed');
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Confluence export failed');
+    } finally {
+      setExportingConfluence(false);
+    }
+  };
+
+  const handleDownloadMarkdown = () => {
+    try {
+      const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `POSTMORTEM-${incidentId}.md`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setExportMessage('Downloaded markdown report file successfully.');
+    } catch (err) {
+      setError('Failed to download markdown: ' + err.message);
+    }
+  };
+
   useEffect(() => {
     const fetchPostMortem = async () => {
       setLoading(true);
@@ -36,8 +95,55 @@ export default function PostMortemEditor() {
           throw new Error('Post-mortem not found');
         }
       } catch (err) {
-        console.error('❌ Failed to fetch post-mortem:', err);
-        setError(err.response?.data?.error || err.message || 'Incident report could not be found.');
+        // Zero-Touch Auto-Drafting on Workspace Load:
+        console.log(`💡 Post-mortem not found for ${incidentId}. Triggering auto-drafting pipeline in the background...`);
+        try {
+          const timelineRes = await axios.get(`/api/postmortem/incident/${incidentId}/timeline`);
+          const timeline = timelineRes.data.timeline || [];
+          const incident = timelineRes.data.incident || {};
+
+          const slackMessages = timeline.filter(t => t.source === 'slack').map(t => ({
+            timestamp: t.timestamp,
+            user: t.title,
+            text: t.description
+          }));
+
+          const deployments = timeline.filter(t => t.source === 'github').map(t => ({
+            timestamp: t.timestamp,
+            commit_hash: t.meta?.sha || 'system',
+            message: t.description
+          }));
+
+          const alerts = timeline.filter(t => t.source === 'pagerduty').map(t => ({
+            timestamp: t.timestamp,
+            name: t.title,
+            severity: t.details || 'critical'
+          }));
+
+          const genRes = await axios.post('/api/postmortem/generate', {
+            incidentId,
+            slackMessages,
+            deployments,
+            alerts,
+            incidentMeta: {
+              title: incident.title || 'Auto-Generated Incident',
+              severity: 'P1',
+              duration: incident.resolved_at 
+                ? `${Math.round((new Date(incident.resolved_at) - new Date(incident.created_at)) / 60000)} minutes`
+                : '90 minutes'
+            }
+          });
+
+          if (genRes.data && genRes.data.markdown) {
+            setMarkdown(genRes.data.markdown);
+            console.log('✅ Auto-draft compiled successfully.');
+          } else {
+            throw new Error('Failed to generate automatic report');
+          }
+        } catch (genErr) {
+          console.error('❌ Zero-touch auto-draft failed:', genErr);
+          setError('Incident report could not be found, and automatic drafting failed: ' + (genErr.response?.data?.message || genErr.message));
+        }
       } finally {
         setLoading(false);
       }
@@ -66,8 +172,32 @@ export default function PostMortemEditor() {
 
       if (res.data && res.data.success) {
         setSaved(true);
-        // Scroll to top to see success banner
         window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        // Unified Parallel Auto-Publish on Approval:
+        setExportMessage('Approved! Automatically publishing post-mortem artifact to GitHub and Confluence in the background...');
+        
+        Promise.allSettled([
+          axios.post('/api/postmortem/export/github', { incidentId, markdown }),
+          axios.post('/api/postmortem/export/confluence', { incidentId, markdown })
+        ]).then(results => {
+          const ghResult = results[0];
+          const confResult = results[1];
+
+          let successMsg = '✅ Post-mortem saved & approved. ';
+          let ghUrl = '';
+
+          if (ghResult.status === 'fulfilled' && ghResult.value.data.success) {
+            successMsg += '🐙 GitHub PR created. ';
+            ghUrl = ghResult.value.data.url;
+          }
+          if (confResult.status === 'fulfilled' && confResult.value.data.success) {
+            successMsg += '🏢 Published to Confluence space.';
+          }
+
+          setExportMessage(successMsg);
+          if (ghUrl) setExportUrl(ghUrl);
+        });
       } else {
         throw new Error('Save response indicated failure');
       }
@@ -223,6 +353,59 @@ export default function PostMortemEditor() {
               preview="live"
               className="bg-[#0B0F19]"
             />
+          </div>
+
+          {/* Export Pipeline Section */}
+          <div className="rounded-2xl border border-gray-800 bg-[#111827]/20 p-6 backdrop-blur-md shadow-xl space-y-4">
+            <h3 className="text-md font-bold text-gray-200 flex items-center space-x-2">
+              <span>🚀</span>
+              <span>Incident Artifact Export Pipeline</span>
+            </h3>
+            <p className="text-xs text-gray-400">
+              Publish this blameless report to corporate knowledge-bases or link it directly in your version control workflows.
+            </p>
+            
+            <div className="flex flex-wrap gap-4 pt-2">
+              <button
+                onClick={handleDownloadMarkdown}
+                disabled={!markdown}
+                className="inline-flex items-center justify-center rounded-xl bg-gray-800 hover:bg-gray-700 border border-gray-700 px-4 py-2.5 text-xs font-semibold text-white shadow transition-all duration-200 disabled:opacity-50 cursor-pointer"
+              >
+                📥 Download Markdown
+              </button>
+
+              <button
+                onClick={handleExportGitHub}
+                disabled={exportingGitHub || !markdown}
+                className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 px-4 py-2.5 text-xs font-semibold text-white shadow transition-all duration-200 disabled:opacity-50 cursor-pointer"
+              >
+                {exportingGitHub ? 'Pushing Branch...' : '🐙 Create GitHub PR'}
+              </button>
+
+              <button
+                onClick={handleExportConfluence}
+                disabled={exportingConfluence || !markdown}
+                className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 px-4 py-2.5 text-xs font-semibold text-white shadow transition-all duration-200 disabled:opacity-50 cursor-pointer"
+              >
+                {exportingConfluence ? 'Uploading Wiki...' : '🏢 Publish to Confluence'}
+              </button>
+            </div>
+
+            {exportMessage && (
+              <div className="rounded-xl border border-cyan-500/10 bg-cyan-500/5 p-4 mt-3 text-xs text-cyan-400 animate-in fade-in duration-300">
+                <p className="font-semibold">{exportMessage}</p>
+                {exportUrl && (
+                  <a
+                    href={exportUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center underline mt-1.5 font-mono text-cyan-300 hover:text-cyan-200"
+                  >
+                    🔗 Link to Created Resource
+                  </a>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Approver Submission Footer */}

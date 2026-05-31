@@ -1,20 +1,27 @@
 const { createClient } = require('@supabase/supabase-js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { OpenAI } = require('openai');
 
 const geminiKey = process.env.GEMINI_API_KEY;
+const openaiKey = process.env.OPENAI_API_KEY;
 const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const isMockMode = process.env.MOCK_MODE === 'true';
 const isLiveGemini = !isMockMode && geminiKey && geminiKey !== 'your_gemini_key' && geminiKey.trim() !== '';
+const isLiveOpenAI = !isMockMode && openaiKey && openaiKey !== 'your_openai_key' && openaiKey.trim() !== '';
 const isLiveSupabase = !isMockMode && supabaseUrl && supabaseUrl !== 'your_supabase_project_url' && supabaseKey && supabaseKey !== 'your_anon_key';
 
 let geminiClient = null;
+let openaiClient = null;
 let supabaseClient = null;
 
 if (isLiveGemini) {
   geminiClient = new GoogleGenerativeAI(geminiKey);
   console.log('🤖 [Embedding Service] Active Gemini AI client initialized inside Next.js.');
+} else if (isLiveOpenAI) {
+  openaiClient = new OpenAI({ apiKey: openaiKey });
+  console.log('🤖 [Embedding Service] Active OpenAI client initialized inside Next.js.');
 } else {
   console.log('💡 [Embedding Service] Using Offline Mock Embedding Generator inside Next.js.');
 }
@@ -28,6 +35,26 @@ if (isLiveSupabase) {
 
 // In-Memory Store Simulator (for Offline Mock Mode)
 const inMemoryIncidentStore = [];
+
+// Pre-seed in-memory store for instant demonstration/testing in mock/offline mode
+try {
+  const { pagerdutyIncidents } = require('./mockData');
+  pagerdutyIncidents.forEach(inc => {
+    const textToEmbed = `${inc.title} ${inc.description || ''}`;
+    inMemoryIncidentStore.push({
+      incident_id: inc.id,
+      title: inc.title,
+      description: inc.description,
+      embedding: generateMockVector(textToEmbed),
+      source: inc.service || 'pagerduty',
+      created_at: inc.created_at,
+      resolved_at: inc.resolved_at
+    });
+  });
+  console.log(`✅ [Embedding Service] Pre-seeded ${inMemoryIncidentStore.length} mock incidents into memory.`);
+} catch (err) {
+  console.warn('⚠️ [Embedding Service] Failed to pre-seed mock incidents:', err.message);
+}
 
 function generateMockVector(text) {
   const normalized = text.toLowerCase();
@@ -86,14 +113,13 @@ async function generateEmbedding(text) {
   if (!text || text.trim() === '') {
     return new Array(1536).fill(0);
   }
-
   if (isLiveGemini) {
     try {
       const model = geminiClient.getGenerativeModel({ model: 'gemini-embedding-001' });
       const response = await model.embedContent(text.replace(/\n/g, ' '));
       let embedding = response.embedding.values;
-      
-      // Pad or truncate to 1536 dimensions for 100% pgvector database compatibility
+
+      // Pad or truncate to 1536 dimensions for pgvector compatibility
       if (embedding.length < 1536) {
         const padded = new Array(1536).fill(0);
         for (let i = 0; i < embedding.length; i++) {
@@ -102,7 +128,6 @@ async function generateEmbedding(text) {
         embedding = padded;
       } else if (embedding.length > 1536) {
         embedding = embedding.slice(0, 1536);
-        // We must re-normalize the vector after slicing so cosine similarity works correctly
         let magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
         if (magnitude > 0) {
           embedding = embedding.map(val => val / magnitude);
@@ -110,12 +135,39 @@ async function generateEmbedding(text) {
       }
       return embedding;
     } catch (err) {
-      console.warn('⚠️ [Embedding Service] Gemini embedding API failed. Falling back to Mock Vector:', err.message);
+      console.warn('⚠️ [Embedding Service] Gemini embedding API failed. Falling back to OpenAI/Mock Vector:', err.message);
+      // fall through to try OpenAI if available
+    }
+  }
+
+  if (!isLiveGemini && isLiveOpenAI) {
+    try {
+      const resp = await openaiClient.embeddings.create({ model: 'text-embedding-3-small', input: text.replace(/\n/g, ' ') });
+      let embedding = resp.data[0].embedding;
+
+      if (!Array.isArray(embedding)) {
+        throw new Error('OpenAI embedding response malformed');
+      }
+
+      if (embedding.length < 1536) {
+        const padded = new Array(1536).fill(0);
+        for (let i = 0; i < embedding.length; i++) padded[i] = embedding[i];
+        embedding = padded;
+      } else if (embedding.length > 1536) {
+        embedding = embedding.slice(0, 1536);
+        const magnitude = Math.sqrt(embedding.reduce((sum, v) => sum + v * v, 0));
+        if (magnitude > 0) embedding = embedding.map(v => v / magnitude);
+      }
+
+      return embedding;
+    } catch (err) {
+      console.warn('⚠️ [Embedding Service] OpenAI embedding API failed. Falling back to Mock Vector:', err.message);
       return generateMockVector(text);
     }
-  } else {
-    return generateMockVector(text);
   }
+
+  // Default: Mock generator
+  return generateMockVector(text);
 }
 
 async function storeEmbedding(incidentId, title, description, embedding, source = 'pagerduty') {

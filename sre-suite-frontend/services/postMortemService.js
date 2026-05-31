@@ -13,8 +13,66 @@ if (isLiveGemini) {
 
 const inMemoryPostMortems = [];
 
-let postMortemsGeneratedCount = 0;
-let postMortemsApprovedCount = 0;
+// Pre-seed in-memory post-mortems for instant demonstration/testing in mock/offline mode
+try {
+  const mockIncidents = [
+    {
+      id: "INC-2041",
+      title: "Database connection pool exhaustion on prod-api",
+      duration: "90 minutes",
+      severity: "P1",
+      approved_by: "Alice Lead SRE",
+      created_at: "2026-05-27T10:34:10Z"
+    },
+    {
+      id: "INC-1982",
+      title: "High API Error Rate on Checkout Service",
+      duration: "48 minutes",
+      severity: "P1",
+      approved_by: null,
+      created_at: "2026-05-20T15:10:00Z"
+    }
+  ];
+
+  mockIncidents.forEach(inc => {
+    const timelineTable = `| Timestamp | Event | Source | Owner |\n| --- | --- | --- | --- |\n| ${inc.created_at} | Incident Triggered | pagerduty | system |\n`;
+    const markdown = `# Post-Mortem: ${inc.title}
+
+## 1. Executive Summary
+The system experienced a ${inc.severity} outage affecting our primary services due to database connection limits. The incident persisted for ${inc.duration}, causing substantial degradation in API latencies.
+
+## 2. Root Cause Analysis (5 Whys)
+1. Why were API services returning 500 errors? Because the gateway database connection pool timed out waiting for idle connections.
+2. Why did the database pool time out? Because active connections reached the maximum hard limit of 100.
+3. Why did connection levels peak? Because a thundering herd on backend APIs exhausted database worker allocations.
+4. Why was the thundering herd triggered? Because the preceding deployment did not include appropriate query pagination.
+5. Why was query pagination missing? Because the feature branch did not run full database load benchmarks.
+
+## 3. Detailed Timeline
+${timelineTable}
+
+## 4. Resolution
+The incident was mitigated by SRE scaling Postgres pool connections from 100 to 150.
+
+## 5. Action Items
+| Action | Owner | Priority | Due Date |
+| --- | --- | --- | --- |
+| Conduct database pool load benchmarking in staging | SRE Pirate | P0 | 2026-06-05 |
+`;
+    inMemoryPostMortems.push({
+      incident_id: inc.id,
+      markdown,
+      approved_by: inc.approved_by,
+      created_at: inc.created_at
+    });
+  });
+  console.log(`✅ [Post-Mortem Service] Pre-seeded ${inMemoryPostMortems.length} mock post-mortems into memory.`);
+} catch (err) {
+  console.warn('⚠️ [Post-Mortem Service] Failed to pre-seed mock post-mortems:', err.message);
+}
+
+let postMortemsGeneratedCount = 2;
+let postMortemsApprovedCount = 1;
 
 function buildTimeline(slackMessages = [], deployments = [], alerts = []) {
   const merged = [];

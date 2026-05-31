@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check": "node scripts/run-integration-checks.js",
+    "seed": "node scripts/seed-historical.js",
+    "ci": "npm ci && npm run check",
+    "test": "node --test"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -15,9 +19,11 @@
     "axios": "^1.16.1",
     "next": "16.2.6",
     "openai": "^6.39.0",
+    "razorpay": "^2.9.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "react-force-graph-2d": "^1.29.1"
+    "react-force-graph-2d": "^1.29.1",
+    "stripe": "^22.2.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
