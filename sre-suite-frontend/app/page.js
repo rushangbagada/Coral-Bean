@@ -1,168 +1,67 @@
 import Link from 'next/link';
-import StatusBadge from '@/components/StatusBadge';
-import embeddingService from '@/services/embeddingService';
-import postMortemService from '@/services/postMortemService';
-import { getReincarnationsCount } from '@/app/api/tracker/check-reincarnation/route';
 
-export const dynamic = 'force-dynamic';
-
-// Fetch stats on the server
-async function getStats() {
-  try {
-    const embedStats = await embeddingService.getStats();
-    const pmStats = await postMortemService.getStatsCounts();
-    const reincarnationsDetected = getReincarnationsCount();
-    return {
-      totalIndexed: embedStats.totalIndexed,
-      reincarnationsDetected: reincarnationsDetected,
-      postMortemsGenerated: pmStats.postMortemsGenerated,
-      postMortemsApproved: pmStats.postMortemsApproved
-    };
-  } catch (err) {
-    console.warn('⚠️ [Dashboard] Direct stats fetch failed. Using simulated stats.');
-    return {
-      totalIndexed: 3,
-      reincarnationsDetected: 2,
-      postMortemsGenerated: 1,
-      postMortemsApproved: 1
-    };
-  }
-}
-
-// Fetch recent post-mortems on the server
-async function getRecentPostMortems() {
-  try {
-    const list = await postMortemService.listPostMortems();
-    return list ? list.slice(0, 5) : [];
-  } catch (err) {
-    console.warn('⚠️ [Dashboard] Direct list fetch failed. Using simulated list.');
-    return [
-      {
-        incident_id: "INC-2041",
-        approved_by: "Alice Lead SRE",
-        created_at: "2026-05-27T10:34:10Z"
-      },
-      {
-        incident_id: "INC-1982",
-        approved_by: null,
-        created_at: "2026-05-20T15:10:00Z"
-      }
-    ];
-  }
-}
-
-export default async function Home() {
-  const stats = await getStats();
-  const recentReports = await getRecentPostMortems();
-
-  const metrics = [
-    { name: 'Total Incidents Indexed', value: stats.totalIndexed, color: 'from-cyan-500 to-blue-600' },
-    { name: 'Reincarnations Detected', value: stats.reincarnationsDetected, color: 'from-pink-500 to-red-600' },
-    { name: 'Post-Mortems Generated', value: stats.postMortemsGenerated, color: 'from-yellow-400 to-amber-600' },
-    { name: 'Post-Mortems Approved', value: stats.postMortemsApproved, color: 'from-emerald-400 to-green-600' }
-  ];
-
+export default function Home() {
   return (
-    <div className="space-y-10 animate-in fade-in duration-500">
-      {/* Hero Headline */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 border-b border-gray-800 pb-8">
-        <div>
-          <h1 className="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-white via-gray-100 to-gray-500 bg-clip-text text-transparent">
-            SRE Co-Pilot Workspace
-          </h1>
-          <p className="text-gray-400 mt-2">
-            AI-powered vector similarity matching for incident tracking and blameless timeline auto-generation.
-          </p>
-        </div>
-        <div>
-          <Link
-            href="/tracker"
-            className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:from-cyan-400 hover:to-indigo-500 transition-all duration-200 transform hover:-translate-y-0.5"
-          >
-            Check New Incident →
-          </Link>
-        </div>
+    <div className="fixed inset-0 z-50 w-full h-screen overflow-hidden bg-black text-white selection:bg-white/30 font-sans">
+      
+      {/* Background Video */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <video 
+          autoPlay 
+          loop 
+          muted 
+          playsInline 
+          className="absolute inset-0 w-full h-full object-cover z-0 opacity-70"
+        >
+          {/* Swapped broken user URL with a working cinematic placeholder video */}
+          <source src="https://res.cloudinary.com/demo/video/upload/sea_turtle.mp4" type="video/mp4" />
+        </video>
+        {/* Fallback dark overlay just in case video fails */}
+        <div className="absolute inset-0 bg-black/40 z-10" />
       </div>
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-        {metrics.map((m, idx) => (
-          <div
-            key={idx}
-            className="relative overflow-hidden rounded-2xl border border-gray-800 bg-[#111827]/40 p-6 backdrop-blur-md shadow-xl transition-all duration-200 hover:border-gray-700"
-          >
-            {/* Subtle color highlight dot */}
-            <div className={`absolute top-0 right-0 h-1.5 w-16 bg-gradient-to-l ${m.color} rounded-bl-full`} />
-            
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              {m.name}
-            </p>
-            <p className="text-3xl font-extrabold text-white mt-3 tracking-tight">
-              {m.value}
-            </p>
+      {/* Top Navigation Pill */}
+      <div className="absolute top-8 left-0 right-0 z-50 flex justify-center w-full px-4">
+        <nav className="flex items-center gap-1 md:gap-2 p-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 shadow-2xl">
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white text-black mr-2">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5l-10 14M22 12H2M19 17L5 7" /></svg>
           </div>
-        ))}
+          <Link href="#" className="px-4 py-2 rounded-full text-[10px] md:text-xs font-semibold tracking-widest text-gray-200 hover:text-white hover:bg-white/10 transition-colors uppercase">Products</Link>
+          <Link href="#" className="px-4 py-2 rounded-full text-[10px] md:text-xs font-semibold tracking-widest text-gray-200 hover:text-white hover:bg-white/10 transition-colors uppercase">Research</Link>
+          <Link href="#" className="px-4 py-2 rounded-full text-[10px] md:text-xs font-semibold tracking-widest text-gray-200 hover:text-white hover:bg-white/10 transition-colors uppercase">Docs</Link>
+          <Link href="#" className="px-4 py-2 rounded-full text-[10px] md:text-xs font-semibold tracking-widest text-gray-200 hover:text-white hover:bg-white/10 transition-colors uppercase">Pricing</Link>
+          <Link href="#" className="px-4 py-2 rounded-full text-[10px] md:text-xs font-semibold tracking-widest text-gray-200 hover:text-white hover:bg-white/10 transition-colors uppercase">Contact</Link>
+        </nav>
       </div>
 
-      {/* Recent Activity Table */}
-      <div className="rounded-2xl border border-gray-800 bg-[#111827]/20 p-6 backdrop-blur-md shadow-xl space-y-4">
-        <h2 className="text-xl font-bold text-gray-200 flex items-center space-x-2">
-          <span>📋</span>
-          <span>Recent SRE Post-Mortems</span>
-        </h2>
+      {/* Main Content (Centered) */}
+      <main className="relative z-20 flex flex-col items-center justify-center h-full px-4 text-center">
         
-        {recentReports.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 text-center space-y-3">
-            <p className="text-gray-500">No post-mortems generated yet.</p>
-            <Link href="/tracker" className="text-cyan-400 hover:underline text-sm font-medium">
-              Run Reincarnation Tracker to generate one
-            </Link>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-gray-300 border-collapse">
-              <thead>
-                <tr className="border-b border-gray-800 text-gray-400 font-semibold">
-                  <th className="py-3 px-4">Incident ID</th>
-                  <th className="py-3 px-4">Created At</th>
-                  <th className="py-3 px-4">Approved By</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/50">
-                {recentReports.map((report, idx) => {
-                  const isApproved = !!report.approved_by;
-                  return (
-                    <tr key={idx} className="hover:bg-gray-800/10 transition-colors">
-                      <td className="py-3.5 px-4 font-mono font-bold text-cyan-400">
-                        {report.incident_id}
-                      </td>
-                      <td className="py-3.5 px-4 text-gray-400">
-                        {new Date(report.created_at).toLocaleString()}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        {report.approved_by || <span className="text-gray-600">—</span>}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <StatusBadge isApproved={isApproved} />
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <Link
-                          href={`/postmortem/${report.incident_id}`}
-                          className="inline-flex items-center text-xs font-semibold text-gray-400 hover:text-white transition-colors bg-gray-800/50 hover:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-700/50"
-                        >
-                          View / Edit
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+        {/* Top Label */}
+        <div className="mb-8 px-4 py-1.5 rounded-full border border-white/20 bg-black/20 backdrop-blur-sm">
+          <span className="text-[10px] font-bold tracking-[0.2em] text-gray-300 uppercase">
+            AI-FIRST ASSISTANT
+          </span>
+        </div>
+
+        {/* Serif Heading */}
+        <h1 className="font-serif text-6xl md:text-8xl lg:text-[7.5rem] leading-[1.05] tracking-tight text-[#FAFAFA] drop-shadow-2xl max-w-5xl mx-auto mb-10">
+          Superintelligence<br />
+          <span className="italic font-light">on-device</span>
+        </h1>
+
+        {/* CTA Button */}
+        <Link 
+          href="/dashboard"
+          className="group flex items-center gap-3 px-6 py-3 rounded-full border border-white/20 bg-white/5 hover:bg-white/10 backdrop-blur-md transition-all duration-300"
+        >
+          <span className="text-[11px] font-bold tracking-widest text-gray-200 uppercase">
+            Launch App
+          </span>
+          <svg className="w-4 h-4 text-gray-300 group-hover:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+        </Link>
+      </main>
+      
     </div>
   );
 }
