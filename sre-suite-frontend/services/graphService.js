@@ -27,7 +27,7 @@ async function buildReincarnationGraph(incidentId, similarIncidents, currentInci
 
   const visitedNodeIds = new Set([incidentId]);
 
-  for (const hist of similarIncidents) {
+    for (const hist of similarIncidents) {
     const histId = hist.incident_id;
 
     if (!visitedNodeIds.has(histId)) {
@@ -90,25 +90,80 @@ async function buildReincarnationGraph(incidentId, similarIncidents, currentInci
       console.warn(`⚠️ [Graph Service] Failed to fetch PRs for historical incident ${histId}:`, prErr.message);
     }
 
-    const ticketNodeId = `ticket_${histId}`;
-    if (!visitedNodeIds.has(ticketNodeId)) {
-      nodes.push({
-        id: ticketNodeId,
-        label: `Ticket: ${histId}-fix-task`,
-        type: 'ticket',
-        metadata: {
-          status: 'backlog',
-          priority: 'medium'
-        }
-      });
-      visitedNodeIds.add(ticketNodeId);
+    try {
+      // Attempt to fetch related tickets from Linear/Jira via integrations service
+      const integrations = require('./integrations');
+      const keyword = extractKeyword(hist.title);
+      const tickets = await integrations.fetchTickets(keyword);
 
-      edges.push({
-        source: histId,
-        target: ticketNodeId,
-        label: 'tracked_remedial_task',
-        similarity: 1.0
-      });
+      if (tickets && tickets.length > 0) {
+        for (const t of tickets) {
+          const ticketNodeId = `ticket_${t.id || t.key || Math.random().toString(36).slice(2,9)}`;
+          if (!visitedNodeIds.has(ticketNodeId)) {
+            nodes.push({
+              id: ticketNodeId,
+              label: `Ticket: ${t.title || t.summary || ticketNodeId}`,
+              type: 'ticket',
+              metadata: {
+                url: t.url || t.link || null,
+                status: t.status || 'unknown',
+                source: t.source || 'external'
+              }
+            });
+            visitedNodeIds.add(ticketNodeId);
+          }
+
+          edges.push({
+            source: histId,
+            target: ticketNodeId,
+            label: 'tracked_remedial_task',
+            similarity: 1.0
+          });
+        }
+      } else {
+        const ticketNodeId = `ticket_${histId}`;
+        if (!visitedNodeIds.has(ticketNodeId)) {
+          nodes.push({
+            id: ticketNodeId,
+            label: `Ticket: ${histId}-fix-task`,
+            type: 'ticket',
+            metadata: {
+              status: 'backlog',
+              priority: 'medium'
+            }
+          });
+          visitedNodeIds.add(ticketNodeId);
+
+          edges.push({
+            source: histId,
+            target: ticketNodeId,
+            label: 'tracked_remedial_task',
+            similarity: 1.0
+          });
+        }
+      }
+    } catch (tErr) {
+      console.warn(`⚠️ [Graph Service] Ticket lookup failed for ${histId}:`, tErr.message);
+      const ticketNodeId = `ticket_${histId}`;
+      if (!visitedNodeIds.has(ticketNodeId)) {
+        nodes.push({
+          id: ticketNodeId,
+          label: `Ticket: ${histId}-fix-task`,
+          type: 'ticket',
+          metadata: {
+            status: 'backlog',
+            priority: 'medium'
+          }
+        });
+        visitedNodeIds.add(ticketNodeId);
+
+        edges.push({
+          source: histId,
+          target: ticketNodeId,
+          label: 'tracked_remedial_task',
+          similarity: 1.0
+        });
+      }
     }
   }
 

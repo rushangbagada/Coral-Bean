@@ -240,6 +240,56 @@ function mockQuery(sql) {
     return githubPullRequests;
   }
 
+  // Linear issues mock tables
+  const linearIssues = [
+    {
+      id: "LIN-101",
+      title: "Scale database connection limits and pool configurations",
+      status: "backlog",
+      url: "https://linear.app/coral-team/issue/LIN-101"
+    },
+    {
+      id: "LIN-102",
+      title: "Implement Redis eviction policy and alerting limits",
+      status: "completed",
+      url: "https://linear.app/coral-team/issue/LIN-102"
+    },
+    {
+      id: "LIN-103",
+      title: "Fix heap leak in checkout session loop handlers",
+      status: "started",
+      url: "https://linear.app/coral-team/issue/LIN-103"
+    }
+  ];
+
+  // Jira issues mock tables
+  const jiraIssues = [
+    {
+      id: "SRE-204",
+      key: "SRE-204",
+      summary: "Audit connection pooling parameters under high volume",
+      status: "In Backlog",
+      url: "https://jira.coralbean.io/browse/SRE-204"
+    }
+  ];
+
+  if (normalizedSql.includes('linear.issues')) {
+    if (normalizedSql.includes('pool') || normalizedSql.includes('db') || normalizedSql.includes('database')) {
+      return [linearIssues[0]];
+    }
+    if (normalizedSql.includes('cache') || normalizedSql.includes('redis') || normalizedSql.includes('eviction')) {
+      return [linearIssues[1]];
+    }
+    if (normalizedSql.includes('memory') || normalizedSql.includes('leak') || normalizedSql.includes('heap')) {
+      return [linearIssues[2]];
+    }
+    return linearIssues;
+  }
+
+  if (normalizedSql.includes('jira.issues')) {
+    return jiraIssues;
+  }
+
   // 4. PagerDuty Incidents
   if (normalizedSql.includes('pagerduty.incidents')) {
     if (normalizedSql.includes("status = 'triggered'") || normalizedSql.includes("status='triggered'")) {

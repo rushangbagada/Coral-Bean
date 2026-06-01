@@ -35,3 +35,7 @@ Desktop.ini
 *.njsproj
 *.sln
 *.sw?
+
+# Secrets and keys
+*rzp-key.csv
+

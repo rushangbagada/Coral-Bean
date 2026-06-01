@@ -9,7 +9,9 @@ export default function Nav() {
   const navItems = [
     { name: 'Dashboard', path: '/' },
     { name: 'Tracker', path: '/tracker' },
-    { name: 'Post-Mortems', path: '/postmortem' }
+    { name: 'War Room', path: '/war-room' },
+    { name: 'Post-Mortems', path: '/postmortem' },
+    { name: 'Analytics', path: '/analytics' }
   ];
 
   return (

@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   /* Config options here. No proxy rewrites required as SRE APIs are native. */
 };
 

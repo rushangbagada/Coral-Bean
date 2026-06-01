@@ -87,10 +87,39 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### 5. Dockerized Deployment (Production)
+Build and run the application as a standalone container:
+```bash
+# Build the production container
+docker build -t sre-suite-frontend .
+
+# Run the container
+docker run -p 3000:3000 --env-file .env.local sre-suite-frontend
+```
+
 ---
 
 ## Testing Data (Seeding)
 If you are running this with a fresh Supabase instance, your similarity search will return 0 results. You can seed the database with mock historical incidents by running:
 ```bash
-node seed-historical.js
+npm run seed
 ```
+
+## Quick Integration Checks (no external services)
+You can run self-contained integration sanity checks that exercise the embedding, graph, and post-mortem services in mock mode:
+
+```bash
+npm run check
+```
+
+This runs a lightweight script under `scripts/run-integration-checks.js` which sets `MOCK_MODE=true` and verifies core flows without requiring Coral, Supabase, or external API keys.
+
+---
+
+## Deployment & Configuration FAQs
+- **Is both Gemini and OpenAI required?**
+  No. Gemini (`GEMINI_API_KEY`) is the primary client used by the AI engine. OpenAI is only configured as a fallback.
+- **Do I need to configure Stripe AND Razorpay?**
+  No. Stripe and Razorpay are alternative payment integrations for premium upgrades. You only need to configure the provider that aligns with your market (or none if running in local mock mode).
+- **For more information**, see the comprehensive [Deployment Guide](../docs/deploy.md) in the `docs` folder.
+
